@@ -202,10 +202,37 @@
       50%       { opacity: 0.45; transform: scale(1.35); }
     }
 
+    /* ─── Char spans (hero name split) ─── */
+    #h-name .char {
+      display: inline-block;
+      will-change: transform, opacity, filter;
+    }
+
+    /* ─── Section header line draw ─── */
+    .sec-header {
+      position: relative;
+      border-bottom: none;
+    }
+    .sec-header::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0;
+      height: 1px;
+      background: var(--border);
+      width: 0;
+      transition: none;
+    }
+    .sec-header.line-drawn::after {
+      width: 100%;
+      transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
     /* ─── Reduced motion ─── */
     @media (prefers-reduced-motion: reduce) {
       .card { transition: none; }
       .pulse-dot { animation: none; }
+      .sec-header { border-bottom: 1px solid var(--border); }
+      .sec-header::after { display: none; }
     }
 
     /* ─── Responsive ─── */
@@ -425,7 +452,6 @@
     </div>
   </footer>
 
-  <!-- GSAP via CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
   <script>
@@ -433,64 +459,116 @@
 
     const noMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    if (!noMotion) {
-
-      /* Hero — stagger fade + slide */
-      gsap.from(['#h-eyebrow', '#h-name', '#h-tagline', '#h-sub'], {
-        opacity: 0,
-        y: 28,
-        duration: 0.9,
-        ease: 'power3.out',
-        stagger: 0.11,
-        delay: 0.15,
-      });
-
-      /* Cards — reveal on scroll */
-      document.querySelectorAll('.card').forEach(function(card) {
-        gsap.from(card, {
-          scrollTrigger: {
-            trigger: card,
-            start: 'top 90%',
-            toggleActions: 'play none none none',
-          },
-          opacity: 0,
-          y: 22,
-          duration: 0.65,
-          ease: 'power2.out',
-        });
-      });
-
-      /* Stack tags — staggered reveal */
-      gsap.from('#stack-tags .stack-tag', {
-        scrollTrigger: {
-          trigger: '#stack-tags',
-          start: 'top 88%',
-        },
-        opacity: 0,
-        y: 10,
-        duration: 0.4,
-        ease: 'power2.out',
-        stagger: 0.045,
-      });
-
-      /* Contact links */
-      gsap.from('.contact-link', {
-        scrollTrigger: {
-          trigger: '#contact',
-          start: 'top 88%',
-        },
-        opacity: 0,
-        y: 10,
-        duration: 0.5,
-        ease: 'power2.out',
-        stagger: 0.1,
-      });
-
-    } else {
-      /* Reduced motion — ensure everything is visible */
+    if (noMotion) {
       document.querySelectorAll('.card, #h-eyebrow, #h-name, #h-tagline, #h-sub, .stack-tag, .contact-link').forEach(function(el) {
         el.style.opacity = '1';
       });
+      document.querySelectorAll('.sec-header').forEach(function(h) {
+        h.classList.add('line-drawn');
+      });
+    } else {
+
+      /* ── 1. Nav desliza de cima ── */
+      gsap.from('nav', {
+        y: -60,
+        opacity: 0,
+        duration: 0.7,
+        ease: 'power3.out',
+        delay: 0.05
+      });
+
+      /* ── 2. Hero name: split em letras ── */
+      var heroName = document.getElementById('h-name');
+      heroName.innerHTML = heroName.textContent.split('').map(function(c) {
+        return '<span class="char">' + c + '</span>';
+      }).join('');
+
+      /* ── 3. Hero — timeline sequenciada ── */
+      var heroTL = gsap.timeline({ delay: 0.35 });
+
+      heroTL
+        .from('#h-eyebrow', {
+          opacity: 0, x: -24, duration: 0.55, ease: 'power3.out'
+        })
+        .from('#h-name .char', {
+          opacity: 0,
+          y: 48,
+          filter: 'blur(10px)',
+          duration: 0.75,
+          ease: 'power3.out',
+          stagger: { amount: 0.45, from: 'start' }
+        }, '-=0.25')
+        .from('#h-tagline', {
+          opacity: 0, y: 20, duration: 0.55, ease: 'power2.out'
+        }, '-=0.2')
+        .from('#h-sub', {
+          opacity: 0, y: 20, duration: 0.55, ease: 'power2.out'
+        }, '-=0.35');
+
+      /* ── 4. Section headers: número + linha + título ── */
+      document.querySelectorAll('.sec-header').forEach(function(header) {
+        var num   = header.querySelector('.sec-num');
+        var title = header.querySelector('.sec-title');
+
+        ScrollTrigger.create({
+          trigger: header,
+          start: 'top 86%',
+          once: true,
+          onEnter: function() {
+            /* linha cresce */
+            header.classList.add('line-drawn');
+            /* número desliza da esquerda */
+            gsap.from(num, {
+              opacity: 0, x: -20, duration: 0.5, ease: 'power2.out'
+            });
+            /* título desliza da direita */
+            gsap.from(title, {
+              opacity: 0, x: 20, duration: 0.6, ease: 'power2.out', delay: 0.08
+            });
+          }
+        });
+      });
+
+      /* ── 5. Cards — stagger em batch por seção ── */
+      document.querySelectorAll('section .cards').forEach(function(grid) {
+        var cards = grid.querySelectorAll('.card');
+        if (!cards.length) return;
+        gsap.from(cards, {
+          scrollTrigger: {
+            trigger: grid,
+            start: 'top 86%',
+            toggleActions: 'play none none none'
+          },
+          opacity: 0,
+          y: 36,
+          duration: 0.65,
+          ease: 'power3.out',
+          stagger: 0.1
+        });
+      });
+
+      /* ── 6. Stack tags — pop com back.out ── */
+      gsap.from('#stack-tags .stack-tag', {
+        scrollTrigger: { trigger: '#stack-tags', start: 'top 88%' },
+        opacity: 0,
+        y: 14,
+        scale: 0.88,
+        duration: 0.45,
+        ease: 'back.out(1.7)',
+        stagger: 0.04,
+        transformOrigin: 'center center'
+      });
+
+      /* ── 7. Links de contato ── */
+      gsap.from('.contact-link', {
+        scrollTrigger: { trigger: '#contact', start: 'top 88%' },
+        opacity: 0,
+        y: 14,
+        duration: 0.5,
+        ease: 'power2.out',
+        stagger: 0.12
+      });
+
     }
   </script>
 </body>
